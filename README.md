@@ -17,7 +17,7 @@ npm run dev
 
 ## GitHub Pages
 
-Push to `main` / `dev` — the Actions workflow builds `client/` and deploys Pages.
+Push to `main` / `dev` ï¿½ the Actions workflow builds `client/` and deploys Pages.
 
 One-time setup on GitHub:
 

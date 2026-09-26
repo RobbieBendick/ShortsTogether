@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ShortsTogether",
-  "version": "0.3.2",
+  "version": "0.3.4",
   "description": "Bridge your YouTube Shorts algorithm into a ShortsTogether shared room.",
   "permissions": ["storage", "tabs"],
   "host_permissions": [
