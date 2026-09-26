@@ -67,8 +67,18 @@
     socket?.setFeedOwner(clientId)
   }
 
-  function handlePlayback(playing: boolean, position: number) {
-    socket?.sendPlayback(playing, position)
+  function handlePlayback(nextPlaying: boolean, nextPosition: number) {
+    const now = Date.now()
+    if (room) {
+      room = {
+        ...room,
+        playing: nextPlaying,
+        position: nextPosition,
+        playbackAt: now,
+        updatedAt: now,
+      }
+    }
+    socket?.sendPlayback(nextPlaying, nextPosition)
   }
 
   async function copy() {

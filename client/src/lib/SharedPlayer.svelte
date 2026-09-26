@@ -21,23 +21,30 @@
     onPlayback: (playing: boolean, position: number) => void
   } = $props()
 
+  let frameEl: HTMLDivElement | undefined = $state()
   let hostEl: HTMLDivElement | undefined = $state()
   let touchStartY = 0
   let wheelLock = false
   let applyingRemote = false
+  let ignoreRemoteUntil = 0
   let lastAppliedAt = 0
-  let seekWatch: ReturnType<typeof setInterval> | null = null
-  let lastLocalPos = 0
-  let lastLocalAt = Date.now()
+  let volume = $state(80)
+  let muted = $state(true) // muted autoplay so browsers allow start
+  let soundUnlocked = $state(false)
+  let driftTimer: ReturnType<typeof setInterval> | null = null
 
   type YtPlayer = {
     destroy: () => void
-    loadVideoById: (id: string) => void
     playVideo: () => void
     pauseVideo: () => void
     seekTo: (seconds: number, allowSeekAhead: boolean) => void
     getCurrentTime: () => number
     getPlayerState: () => number
+    mute: () => void
+    unMute: () => void
+    isMuted: () => boolean
+    setVolume: (v: number) => void
+    getVolume: () => number
   }
 
   let player: YtPlayer | null = null
@@ -47,12 +54,7 @@
   const ENDED = 0
 
   function getYt():
-    | {
-        Player: new (
-          el: HTMLElement,
-          opts: Record<string, unknown>,
-        ) => YtPlayer
-      }
+    | { Player: new (el: HTMLElement, opts: Record<string, unknown>) => YtPlayer }
     | undefined {
     return (window as Window & { YT?: { Player: new (el: HTMLElement, opts: Record<string, unknown>) => YtPlayer } }).YT
   }
@@ -76,24 +78,32 @@
   }
 
   function expectedTime(pos: number, at: number, isPlaying: boolean) {
-    if (!isPlaying || !at) return pos
-    return pos + Math.max(0, (Date.now() - at) / 1000)
+    if (!isPlaying || !at) return Math.max(0, pos)
+    return Math.max(0, pos + (Date.now() - at) / 1000)
   }
 
   function applyRemote(force = false) {
     if (!player) return
+    if (!force && Date.now() < ignoreRemoteUntil) return
+
     const target = expectedTime(position, playbackAt, playing)
     try {
       applyingRemote = true
       const current = player.getCurrentTime?.() ?? 0
-      if (force || Math.abs(current - target) > 0.85) {
+      if (force || Math.abs(current - target) > 0.75) {
         player.seekTo(target, true)
       }
       const state = player.getPlayerState?.()
-      if (playing && state !== PLAYING) player.playVideo()
-      else if (!playing && state === PLAYING) player.pauseVideo()
+      if (playing) {
+        if (state !== PLAYING) player.playVideo()
+      } else if (state === PLAYING) {
+        player.pauseVideo()
+      }
+      player.setVolume?.(volume)
+      if (muted) player.mute?.()
+      else player.unMute?.()
     } catch {
-      /* mid-load */
+      /* player mid-load */
     } finally {
       queueMicrotask(() => {
         applyingRemote = false
@@ -101,13 +111,76 @@
     }
   }
 
-  function emitLocal(nextPlaying: boolean) {
+  function emitPlayback(nextPlaying: boolean) {
     if (applyingRemote || !player) return
     try {
       const t = player.getCurrentTime() || 0
-      lastLocalPos = t
-      lastLocalAt = Date.now()
+      ignoreRemoteUntil = Date.now() + 400
       onPlayback(nextPlaying, t)
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function togglePlay() {
+    if (!player) return
+    unlockSound()
+    const next = !playing
+    try {
+      applyingRemote = true
+      if (next) player.playVideo()
+      else player.pauseVideo()
+    } finally {
+      queueMicrotask(() => {
+        applyingRemote = false
+      })
+    }
+    emitPlayback(next)
+  }
+
+  function unlockSound() {
+    if (!player) return
+    soundUnlocked = true
+    muted = false
+    try {
+      player.unMute()
+      player.setVolume(volume)
+      if (playing) player.playVideo()
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function onVolumeInput(event: Event) {
+    const value = Number((event.target as HTMLInputElement).value)
+    volume = value
+    if (!player) return
+    player.setVolume(value)
+    if (value === 0) {
+      muted = true
+      player.mute()
+    } else if (muted || !soundUnlocked) {
+      muted = false
+      soundUnlocked = true
+      player.unMute()
+    }
+  }
+
+  function toggleMute() {
+    if (!player) return
+    if (muted || !soundUnlocked) {
+      unlockSound()
+      return
+    }
+    muted = true
+    player.mute()
+  }
+
+  async function toggleFullscreen() {
+    if (!frameEl) return
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen()
+      else await frameEl.requestFullscreen()
     } catch {
       /* ignore */
     }
@@ -117,6 +190,7 @@
     await loadApi()
     const YT = getYt()
     if (!YT || !hostEl) return
+
     player?.destroy()
     hostEl.innerHTML = ''
     const mountNode = document.createElement('div')
@@ -129,26 +203,50 @@
       width: '100%',
       height: '100%',
       playerVars: {
-        autoplay: playing ? 1 : 0,
-        start: Math.floor(startAt),
-        controls: 1,
+        autoplay: 1,
+        mute: 1,
+        start: Math.max(0, Math.floor(startAt)),
+        controls: 0,
         rel: 0,
         modestbranding: 1,
         playsinline: 1,
+        disablekb: 1,
+        fs: 0,
+        iv_load_policy: 3,
         origin: location.origin,
       },
       events: {
         onReady: () => {
-          lastAppliedAt = playbackAt
-          lastLocalPos = startAt
-          lastLocalAt = Date.now()
+          lastAppliedAt = playbackAt || Date.now()
+          try {
+            player?.setVolume(volume)
+            if (soundUnlocked && !muted) player?.unMute()
+            else player?.mute()
+          } catch {
+            /* ignore */
+          }
           applyRemote(true)
         },
         onStateChange: (e: { data: number }) => {
           if (applyingRemote || !player) return
-          if (e.data === PLAYING) emitLocal(true)
-          else if (e.data === PAUSED) emitLocal(false)
-          else if (e.data === ENDED) onNext()
+          if (e.data === ENDED) {
+            onNext()
+            return
+          }
+          // Keep everyone locked to shared play state — if YT drifts, correct it
+          if (e.data === PLAYING && !playing) {
+            applyingRemote = true
+            player.pauseVideo()
+            queueMicrotask(() => {
+              applyingRemote = false
+            })
+          } else if (e.data === PAUSED && playing) {
+            applyingRemote = true
+            player.playVideo()
+            queueMicrotask(() => {
+              applyingRemote = false
+            })
+          }
         },
       },
     })
@@ -166,42 +264,32 @@
 
   $effect(() => {
     const token = playbackAt
-    if (!player || !token || token === lastAppliedAt) return
-    lastAppliedAt = token
-    applyRemote()
+    playing
+    position
+    if (!player) return
+    if (token && token !== lastAppliedAt) {
+      lastAppliedAt = token
+      applyRemote()
+    } else if (!token) {
+      applyRemote()
+    }
   })
 
   $effect(() => {
-    if (seekWatch) {
-      clearInterval(seekWatch)
-      seekWatch = null
+    if (driftTimer) {
+      clearInterval(driftTimer)
+      driftTimer = null
     }
-    // Detect scrubbing on the YouTube controls
-    seekWatch = setInterval(() => {
-      if (!player || applyingRemote) return
-      try {
-        const current = player.getCurrentTime() || 0
-        const state = player.getPlayerState()
-        const advancing = state === PLAYING
-        const expected = advancing
-          ? lastLocalPos + (Date.now() - lastLocalAt) / 1000
-          : lastLocalPos
-        if (Math.abs(current - expected) > 1.25) {
-          lastLocalPos = current
-          lastLocalAt = Date.now()
-          onPlayback(advancing, current)
-        } else {
-          lastLocalPos = current
-          lastLocalAt = Date.now()
-        }
-      } catch {
-        /* ignore */
-      }
-    }, 1000)
+    // Nudge timeline back in sync while watching
+    driftTimer = setInterval(() => {
+      if (!player || !videoId) return
+      if (Date.now() < ignoreRemoteUntil) return
+      applyRemote(false)
+    }, 2000)
   })
 
   onDestroy(() => {
-    if (seekWatch) clearInterval(seekWatch)
+    if (driftTimer) clearInterval(driftTimer)
     player?.destroy()
     player = null
   })
@@ -213,7 +301,7 @@
   function onTouchEnd(e: TouchEvent) {
     const endY = e.changedTouches[0]?.clientY ?? 0
     const dy = touchStartY - endY
-    if (Math.abs(dy) < 48) return
+    if (Math.abs(dy) < 56) return
     if (dy > 0) onNext()
     else onPrev()
   }
@@ -239,8 +327,38 @@
   onwheel={onWheel}
 >
   {#if videoId}
-    <div class="frame">
+    <div class="frame" bind:this={frameEl}>
       <div class="player" bind:this={hostEl}></div>
+
+      {#if !soundUnlocked}
+        <button class="unlock" type="button" onclick={unlockSound}>
+          Tap to enable sound & sync
+        </button>
+      {/if}
+
+      <div class="controls">
+        <button class="ctrl play" type="button" onclick={togglePlay} aria-label={playing ? 'Pause for everyone' : 'Play for everyone'}>
+          {playing ? '❚❚' : '▶'}
+        </button>
+
+        <div class="local">
+          <button class="ctrl" type="button" onclick={toggleMute} aria-label="Mute">
+            {muted || !soundUnlocked ? '🔇' : '🔊'}
+          </button>
+          <input
+            class="vol"
+            type="range"
+            min="0"
+            max="100"
+            bind:value={volume}
+            oninput={onVolumeInput}
+            aria-label="Volume"
+          />
+          <button class="ctrl" type="button" onclick={toggleFullscreen} aria-label="Fullscreen">
+            ⛶
+          </button>
+        </div>
+      </div>
     </div>
   {:else}
     <div class="empty">
@@ -266,6 +384,7 @@
   }
 
   .frame {
+    position: relative;
     width: min(100%, 420px);
     height: min(100%, 820px);
     aspect-ratio: 9 / 16;
@@ -279,12 +398,70 @@
   .player {
     width: 100%;
     height: 100%;
+    pointer-events: none;
   }
 
   .player :global(iframe) {
     width: 100%;
     height: 100%;
     border: 0;
+  }
+
+  .unlock {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    border: 0;
+    background: rgba(9, 13, 12, 0.72);
+    color: var(--lime);
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .controls {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 4;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.85rem 0.9rem 1rem;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.75));
+  }
+
+  .local {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+  }
+
+  .ctrl {
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(20, 28, 26, 0.85);
+    color: #edf2f0;
+    border-radius: 999px;
+    width: 2.5rem;
+    height: 2.5rem;
+    font-size: 0.95rem;
+    font-weight: 700;
+  }
+
+  .ctrl.play {
+    width: 3rem;
+    height: 3rem;
+    background: var(--accent);
+    border-color: transparent;
+    color: #fff;
+  }
+
+  .vol {
+    width: 90px;
+    accent-color: var(--lime);
   }
 
   .empty {
@@ -313,7 +490,6 @@
     font-family: var(--font-body) !important;
     font-size: 0.9rem !important;
     font-weight: 500 !important;
-    opacity: 0.85;
     color: var(--muted) !important;
   }
 
