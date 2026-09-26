@@ -1,12 +1,15 @@
 :root {
-  --bg: #e7f2ef;
-  --bg-deep: #0b3d3a;
-  --ink: #10221f;
-  --muted: #3d5c57;
+  color-scheme: dark;
+  --bg: #090d0c;
+  --ink: #edf2f0;
+  --muted: #8f9f9a;
   --accent: #ff5a36;
-  --lime: #e8ff6a;
-  --panel: rgba(255, 255, 255, 0.72);
-  --stroke: rgba(16, 34, 31, 0.12);
+  --lime: #d8ff3e;
+  --brand: #d8ff3e;
+  --solid: #141c1a;
+  --panel: rgba(255, 255, 255, 0.06);
+  --stroke: rgba(255, 255, 255, 0.12);
+  --error: #ff8a80;
   --font-display: 'Bricolage Grotesque', Georgia, serif;
   --font-body: 'Figtree', system-ui, sans-serif;
   color: var(--ink);
@@ -30,19 +33,25 @@ body,
 
 body {
   background:
-    radial-gradient(ellipse 80% 60% at 10% 0%, rgba(232, 255, 106, 0.35), transparent 55%),
-    radial-gradient(ellipse 70% 50% at 90% 10%, rgba(255, 90, 54, 0.22), transparent 50%),
-    linear-gradient(165deg, #d8ebe6 0%, #e7f2ef 40%, #f3f7f5 100%);
+    radial-gradient(ellipse 70% 50% at 8% 0%, rgba(216, 255, 62, 0.12), transparent 55%),
+    radial-gradient(ellipse 60% 45% at 92% 8%, rgba(255, 90, 54, 0.16), transparent 50%),
+    radial-gradient(ellipse 50% 40% at 50% 100%, rgba(20, 60, 55, 0.45), transparent 60%),
+    linear-gradient(165deg, #0b1110 0%, #090d0c 45%, #0e1513 100%);
   background-attachment: fixed;
 }
 
 button,
 input {
   font: inherit;
+  color: inherit;
 }
 
 button {
   cursor: pointer;
+}
+
+input {
+  color-scheme: dark;
 }
 
 a {

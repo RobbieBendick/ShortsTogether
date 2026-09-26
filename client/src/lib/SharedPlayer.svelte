@@ -183,7 +183,8 @@
     padding: 2rem;
     text-align: center;
     border-radius: 1.25rem;
-    background: rgba(11, 61, 58, 0.92);
+    background: var(--solid);
+    border: 1px solid var(--stroke);
     color: var(--lime);
     font-family: var(--font-display);
   }
@@ -199,6 +200,7 @@
     font-size: 0.9rem !important;
     font-weight: 500 !important;
     opacity: 0.85;
+    color: var(--muted) !important;
   }
 
   .chrome {
@@ -215,10 +217,11 @@
     height: 2.6rem;
     border-radius: 999px;
     border: 1px solid var(--stroke);
-    background: var(--panel);
+    background: rgba(20, 28, 26, 0.88);
+    backdrop-filter: blur(8px);
     font-size: 1.1rem;
     font-weight: 700;
-    color: var(--bg-deep);
+    color: var(--ink);
   }
 
   .nav:disabled {

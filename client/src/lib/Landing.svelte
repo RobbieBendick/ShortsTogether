@@ -116,7 +116,7 @@
     font-weight: 800;
     letter-spacing: -0.04em;
     line-height: 0.95;
-    color: var(--bg-deep);
+    color: var(--brand);
   }
 
   h1 {
@@ -126,6 +126,7 @@
     font-weight: 650;
     letter-spacing: -0.02em;
     max-width: 16ch;
+    color: var(--ink);
   }
 
   .lede {
@@ -155,6 +156,12 @@
     padding: 0.7rem 0.85rem;
     background: var(--panel);
     outline: none;
+    color: var(--ink);
+  }
+
+  .field input:focus,
+  .join input:focus {
+    border-color: rgba(216, 255, 62, 0.45);
   }
 
   .primary,
@@ -170,6 +177,10 @@
     color: #fff;
   }
 
+  .primary:hover:not(:disabled) {
+    background: #ff6e4f;
+  }
+
   .join {
     display: grid;
     grid-template-columns: 1fr auto;
@@ -177,13 +188,14 @@
   }
 
   .secondary {
-    background: var(--bg-deep);
+    background: var(--solid);
     color: var(--lime);
+    border: 1px solid var(--stroke);
   }
 
   .error {
     margin: 0;
-    color: #b42318;
+    color: var(--error);
   }
 
   .hint {

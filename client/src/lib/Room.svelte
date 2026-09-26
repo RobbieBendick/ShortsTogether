@@ -136,7 +136,7 @@
     font-family: var(--font-display);
     font-weight: 800;
     text-decoration: none;
-    color: var(--bg-deep);
+    color: var(--brand);
   }
 
   .meta {
@@ -152,6 +152,7 @@
     padding: 0.3rem 0.6rem;
     border-radius: 999px;
     background: var(--lime);
+    color: #0a0f0e;
     font-weight: 700;
   }
 
@@ -161,7 +162,7 @@
   }
 
   .pill.feed {
-    color: var(--bg-deep);
+    color: var(--lime);
     font-weight: 600;
   }
 
@@ -171,6 +172,7 @@
     border-radius: 999px;
     padding: 0.35rem 0.75rem;
     font-weight: 600;
+    color: var(--ink);
   }
 
   .feeds {
@@ -189,11 +191,12 @@
     border-radius: 999px;
     padding: 0.35rem 0.75rem;
     font-weight: 700;
+    color: var(--ink);
   }
 
   .feeds button.active {
-    background: var(--bg-deep);
-    color: var(--lime);
+    background: var(--lime);
+    color: #0a0f0e;
     border-color: transparent;
   }
 
@@ -205,7 +208,7 @@
   }
 
   .banner {
-    color: #b42318;
+    color: var(--error);
   }
 
   .player-wrap {

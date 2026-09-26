@@ -1,5 +1,6 @@
 :root {
-  color: #10221f;
+  color-scheme: dark;
+  color: #edf2f0;
   font-family: 'Segoe UI', system-ui, sans-serif;
 }
 
@@ -11,9 +12,9 @@ body {
   margin: 0;
   width: 300px;
   background:
-    radial-gradient(circle at 0% 0%, #e8ff6a55, transparent 45%),
-    radial-gradient(circle at 100% 0%, #ff5a3640, transparent 40%),
-    #e7f2ef;
+    radial-gradient(circle at 0% 0%, rgba(216, 255, 62, 0.12), transparent 45%),
+    radial-gradient(circle at 100% 0%, rgba(255, 90, 54, 0.14), transparent 40%),
+    #090d0c;
 }
 
 main {
@@ -26,13 +27,14 @@ h1 {
   margin: 0;
   font-size: 1.25rem;
   letter-spacing: -0.03em;
+  color: #d8ff3e;
 }
 
 .lede {
   margin: 0;
   font-size: 0.82rem;
   line-height: 1.4;
-  color: #3d5c57;
+  color: #8f9f9a;
 }
 
 .field {
@@ -40,21 +42,21 @@ h1 {
   gap: 0.3rem;
   font-size: 0.75rem;
   font-weight: 600;
-  color: #3d5c57;
+  color: #8f9f9a;
 }
 
 .field input {
-  border: 1px solid rgba(16, 34, 31, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 0.65rem;
   padding: 0.55rem 0.7rem;
-  background: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.06);
   outline: none;
   font-weight: 500;
-  color: #10221f;
+  color: #edf2f0;
 }
 
 .field input:focus {
-  border-color: #0b3d3a;
+  border-color: rgba(216, 255, 62, 0.45);
 }
 
 .panel {
@@ -83,83 +85,13 @@ button {
 
 button.ghost {
   background: transparent;
-  color: #0b3d3a;
-  border: 1px solid rgba(16, 34, 31, 0.15);
-}
-
-#join-form {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 0.35rem;
-  padding: 0.3rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.75);
-  border: 1px solid rgba(16, 34, 31, 0.12);
-}
-
-#join-form input {
-  border: none;
-  background: transparent;
-  padding: 0.45rem 0.7rem;
-  outline: none;
-  min-width: 0;
-  letter-spacing: 0.06em;
-  text-transform: lowercase;
-}
-
-#join-form button {
-  background: #0b3d3a;
-  color: #e8ff6a;
-}
-
-.row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.35rem;
-}
-
-.row button {
-  background: #0b3d3a;
-  color: #e8ff6a;
-  font-size: 0.82rem;
-}
-
-.label {
-  margin: 0;
-  font-size: 0.75rem;
-  color: #3d5c57;
-  font-weight: 600;
-}
-
-.code {
-  margin: 0;
-  font-family: ui-monospace, monospace;
-  font-size: 1.4rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: lowercase;
-}
-
-.hint-inline {
-  margin: 0;
-  font-size: 0.75rem;
-  line-height: 1.35;
-  color: #3d5c57;
+  color: #edf2f0;
+  border: 1px solid rgba(255, 255, 255, 0.14);
 }
 
 .status {
   margin: 0;
   min-height: 1.1em;
   font-size: 0.78rem;
-  color: #0b3d3a;
-}
-
-.hint {
-  margin: 0;
-  font-size: 0.7rem;
-  color: #3d5c57;
-}
-
-.hint code {
-  font-size: 0.68rem;
+  color: #d8ff3e;
 }
