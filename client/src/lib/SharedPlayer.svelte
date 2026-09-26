@@ -18,20 +18,34 @@
     canGoPrev?: boolean
     onNext: () => void
     onPrev: () => void
-    onPlayback: (playing: boolean, position: number) => void
+    onPlayback: (playing: boolean, position: number, at: number) => void
   } = $props()
 
   let frameEl: HTMLDivElement | undefined = $state()
   let hostEl: HTMLDivElement | undefined = $state()
   let touchStartY = 0
   let wheelLock = false
-  let applyingRemote = false
-  let ignoreRemoteUntil = 0
-  let lastAppliedAt = 0
   let volume = $state(80)
-  let muted = $state(true) // muted autoplay so browsers allow start
+  let muted = $state(true)
   let soundUnlocked = $state(false)
-  let driftTimer: ReturnType<typeof setInterval> | null = null
+
+  // Button / local authority — not overwritten until a NEWER remote clock arrives
+  let uiPlaying = $state(true)
+  let lastRemoteAt = 0
+  let ignoreRemoteUntil = 0
+  let mountedId: string | null = null
+  let playRetryTimer: ReturnType<typeof setTimeout> | null = null
+  let initializedUi = false
+
+  $effect(() => {
+    // Seed once from room when we first get playback props
+    if (initializedUi) return
+    playing
+    playbackAt
+    initializedUi = true
+    uiPlaying = playing
+    lastRemoteAt = playbackAt || 0
+  })
 
   type YtPlayer = {
     destroy: () => void
@@ -42,15 +56,11 @@
     getPlayerState: () => number
     mute: () => void
     unMute: () => void
-    isMuted: () => boolean
     setVolume: (v: number) => void
-    getVolume: () => number
   }
 
   let player: YtPlayer | null = null
-
   const PLAYING = 1
-  const PAUSED = 2
   const ENDED = 0
 
   function getYt():
@@ -82,60 +92,79 @@
     return Math.max(0, pos + (Date.now() - at) / 1000)
   }
 
-  function applyRemote(force = false) {
-    if (!player) return
-    if (!force && Date.now() < ignoreRemoteUntil) return
-
-    const target = expectedTime(position, playbackAt, playing)
-    try {
-      applyingRemote = true
-      const current = player.getCurrentTime?.() ?? 0
-      if (force || Math.abs(current - target) > 0.75) {
-        player.seekTo(target, true)
-      }
-      const state = player.getPlayerState?.()
-      if (playing) {
-        if (state !== PLAYING) player.playVideo()
-      } else if (state === PLAYING) {
-        player.pauseVideo()
-      }
-      player.setVolume?.(volume)
-      if (muted) player.mute?.()
-      else player.unMute?.()
-    } catch {
-      /* player mid-load */
-    } finally {
-      queueMicrotask(() => {
-        applyingRemote = false
-      })
+  function clearPlayRetry() {
+    if (playRetryTimer) {
+      clearTimeout(playRetryTimer)
+      playRetryTimer = null
     }
   }
 
-  function emitPlayback(nextPlaying: boolean) {
-    if (applyingRemote || !player) return
+  function ensurePlay() {
+    clearPlayRetry()
     try {
-      const t = player.getCurrentTime() || 0
-      ignoreRemoteUntil = Date.now() + 400
-      onPlayback(nextPlaying, t)
+      player?.playVideo()
     } catch {
       /* ignore */
+    }
+    // seekTo often leaves YT paused — nudge play again
+    playRetryTimer = setTimeout(() => {
+      try {
+        if (uiPlaying) player?.playVideo()
+      } catch {
+        /* ignore */
+      }
+    }, 150)
+  }
+
+  function applyRemote(nextPlaying: boolean, pos: number, at: number) {
+    if (!player) return
+    const target = expectedTime(pos, at, nextPlaying)
+    try {
+      const current = player.getCurrentTime?.() ?? 0
+      const drifted = Math.abs(current - target) > 1.25
+      if (drifted) player.seekTo(target, true)
+
+      if (nextPlaying) {
+        if (drifted) ensurePlay()
+        else player.playVideo()
+      } else {
+        clearPlayRetry()
+        player.pauseVideo()
+      }
+    } catch {
+      /* mid-load */
     }
   }
 
   function togglePlay() {
     if (!player) return
     unlockSound()
-    const next = !playing
+
+    const nextPlaying = !uiPlaying
+    let t = 0
     try {
-      applyingRemote = true
-      if (next) player.playVideo()
-      else player.pauseVideo()
-    } finally {
-      queueMicrotask(() => {
-        applyingRemote = false
-      })
+      t = player.getCurrentTime() || 0
+    } catch {
+      t = position
     }
-    emitPlayback(next)
+
+    const at = Date.now()
+    uiPlaying = nextPlaying
+    // Block remote echoes / stale pauses from undoing this click
+    lastRemoteAt = at
+    ignoreRemoteUntil = at + 1000
+
+    if (nextPlaying) ensurePlay()
+    else {
+      clearPlayRetry()
+      try {
+        player.pauseVideo()
+      } catch {
+        /* ignore */
+      }
+    }
+
+    onPlayback(nextPlaying, t, at)
   }
 
   function unlockSound() {
@@ -145,7 +174,7 @@
     try {
       player.unMute()
       player.setVolume(volume)
-      if (playing) player.playVideo()
+      if (uiPlaying) ensurePlay()
     } catch {
       /* ignore */
     }
@@ -159,7 +188,7 @@
     if (value === 0) {
       muted = true
       player.mute()
-    } else if (muted || !soundUnlocked) {
+    } else {
       muted = false
       soundUnlocked = true
       player.unMute()
@@ -190,11 +219,16 @@
     await loadApi()
     const YT = getYt()
     if (!YT || !hostEl) return
+    if (mountedId === id && player) return
 
     player?.destroy()
+    clearPlayRetry()
     hostEl.innerHTML = ''
     const mountNode = document.createElement('div')
     hostEl.appendChild(mountNode)
+    mountedId = id
+    uiPlaying = playing
+    lastRemoteAt = playbackAt || 0
 
     const startAt = expectedTime(position, playbackAt, playing)
 
@@ -217,7 +251,6 @@
       },
       events: {
         onReady: () => {
-          lastAppliedAt = playbackAt || Date.now()
           try {
             player?.setVolume(volume)
             if (soundUnlocked && !muted) player?.unMute()
@@ -225,28 +258,11 @@
           } catch {
             /* ignore */
           }
-          applyRemote(true)
+          applyRemote(uiPlaying, position, playbackAt || Date.now())
         },
         onStateChange: (e: { data: number }) => {
-          if (applyingRemote || !player) return
-          if (e.data === ENDED) {
-            onNext()
-            return
-          }
-          // Keep everyone locked to shared play state — if YT drifts, correct it
-          if (e.data === PLAYING && !playing) {
-            applyingRemote = true
-            player.pauseVideo()
-            queueMicrotask(() => {
-              applyingRemote = false
-            })
-          } else if (e.data === PAUSED && playing) {
-            applyingRemote = true
-            player.playVideo()
-            queueMicrotask(() => {
-              applyingRemote = false
-            })
-          }
+          if (e.data === ENDED) onNext()
+          // Do not sync play/pause from YT events — that caused the pause loop
         },
       },
     })
@@ -257,39 +273,29 @@
     if (!id) {
       player?.destroy()
       player = null
+      mountedId = null
       return
     }
     void mount(id)
   })
 
+  // Remote updates only — never undo a fresh local click
   $effect(() => {
-    const token = playbackAt
-    playing
-    position
+    const at = playbackAt
+    const play = playing
+    const pos = position
     if (!player) return
-    if (token && token !== lastAppliedAt) {
-      lastAppliedAt = token
-      applyRemote()
-    } else if (!token) {
-      applyRemote()
-    }
-  })
+    if (!at) return
+    if (at <= lastRemoteAt) return
+    if (Date.now() < ignoreRemoteUntil) return
 
-  $effect(() => {
-    if (driftTimer) {
-      clearInterval(driftTimer)
-      driftTimer = null
-    }
-    // Nudge timeline back in sync while watching
-    driftTimer = setInterval(() => {
-      if (!player || !videoId) return
-      if (Date.now() < ignoreRemoteUntil) return
-      applyRemote(false)
-    }, 2000)
+    lastRemoteAt = at
+    uiPlaying = play
+    applyRemote(play, pos, at)
   })
 
   onDestroy(() => {
-    if (driftTimer) clearInterval(driftTimer)
+    clearPlayRetry()
     player?.destroy()
     player = null
   })
@@ -337,8 +343,13 @@
       {/if}
 
       <div class="controls">
-        <button class="ctrl play" type="button" onclick={togglePlay} aria-label={playing ? 'Pause for everyone' : 'Play for everyone'}>
-          {playing ? '❚❚' : '▶'}
+        <button
+          class="ctrl play"
+          type="button"
+          onclick={togglePlay}
+          aria-label={uiPlaying ? 'Pause for everyone' : 'Play for everyone'}
+        >
+          {uiPlaying ? '❚❚' : '▶'}
         </button>
 
         <div class="local">
@@ -508,7 +519,6 @@
     border-radius: 999px;
     border: 1px solid var(--stroke);
     background: rgba(20, 28, 26, 0.88);
-    backdrop-filter: blur(8px);
     font-size: 1.1rem;
     font-weight: 700;
     color: var(--ink);

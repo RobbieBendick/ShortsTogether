@@ -67,18 +67,19 @@
     socket?.setFeedOwner(clientId)
   }
 
-  function handlePlayback(nextPlaying: boolean, nextPosition: number) {
-    const now = Date.now()
+  function handlePlayback(nextPlaying: boolean, nextPosition: number, at: number) {
+    // Keep local room in sync for the button, but stamp with the SAME clock we send
+    // so a stale remote pause can't win with a newer server Date.now().
     if (room) {
       room = {
         ...room,
         playing: nextPlaying,
         position: nextPosition,
-        playbackAt: now,
-        updatedAt: now,
+        playbackAt: at,
+        updatedAt: at,
       }
     }
-    socket?.sendPlayback(nextPlaying, nextPosition)
+    socket?.sendPlayback(nextPlaying, nextPosition, at)
   }
 
   async function copy() {

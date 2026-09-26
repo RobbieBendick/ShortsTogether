@@ -112,8 +112,8 @@ export class RoomSocket {
     this.send({ type: 'set-feed-owner', clientId: clientIdValue })
   }
 
-  sendPlayback(playing: boolean, position: number) {
-    this.send({ type: 'playback', playing, position })
+  sendPlayback(playing: boolean, position: number, at = Date.now()) {
+    this.send({ type: 'playback', playing, position, at })
   }
 
   close() {
