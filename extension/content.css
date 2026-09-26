@@ -1,0 +1,30 @@
+#st-badge {
+  position: fixed;
+  z-index: 2147483646;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.45rem 0.8rem;
+  border-radius: 999px;
+  background: rgba(11, 61, 58, 0.94);
+  color: #e8ff6a;
+  font: 600 12px/1.2 "Segoe UI", system-ui, sans-serif;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  pointer-events: none;
+}
+
+#st-badge[data-connected='0'] {
+  background: rgba(255, 90, 54, 0.94);
+  color: #fff;
+}
+
+#st-badge[data-owner='1'] {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28), 0 0 0 2px #e8ff6a;
+}
+
+#st-badge strong {
+  font-weight: 800;
+}

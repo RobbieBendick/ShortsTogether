@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ShortsTogether Feed</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main>
+      <h1>ShortsTogether</h1>
+      <p class="lede">
+        Connect <em>your</em> YouTube Shorts feed to a shared room. Everyone watches on the
+        website — this tab supplies the algorithm.
+      </p>
+
+      <label class="field">
+        <span>Your name (shown as feed)</span>
+        <input id="name-input" type="text" maxlength="24" placeholder="Alex" />
+      </label>
+
+      <label class="field">
+        <span>Sync server</span>
+        <input
+          id="server-input"
+          type="text"
+          placeholder="wss://your-app.onrender.com"
+          spellcheck="false"
+        />
+      </label>
+
+      <label class="field">
+        <span>Room code</span>
+        <input id="code" type="text" maxlength="12" placeholder="from the website" spellcheck="false" />
+      </label>
+
+      <button id="connect" type="button">Connect my YouTube feed</button>
+      <button id="open-shorts" type="button" class="ghost">Open Shorts</button>
+      <button id="leave" type="button" class="ghost">Disconnect</button>
+
+      <p id="status" class="status"></p>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>
