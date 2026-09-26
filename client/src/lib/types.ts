@@ -14,6 +14,16 @@ export type RoomState = {
   members: Member[]
   bridges: Member[]
   historyLength: number
+  playing: boolean
+  position: number
+  playbackAt: number
   updatedAt: number
   viewers: number
+}
+
+export type PlaybackState = {
+  type: 'playback'
+  playing: boolean
+  position: number
+  playbackAt: number
 }

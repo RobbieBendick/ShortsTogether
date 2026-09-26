@@ -1,29 +1,50 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte'
+
   let {
     videoId,
+    playing = true,
+    position = 0,
+    playbackAt = 0,
     canGoPrev = false,
     onNext,
     onPrev,
+    onPlayback,
   }: {
     videoId: string | null
+    playing?: boolean
+    position?: number
+    playbackAt?: number
     canGoPrev?: boolean
     onNext: () => void
     onPrev: () => void
+    onPlayback: (playing: boolean, position: number) => void
   } = $props()
 
   let hostEl: HTMLDivElement | undefined = $state()
   let touchStartY = 0
   let wheelLock = false
-  let player: {
-    destroy: () => void
-    loadVideoById?: (id: string) => void
-  } | null = null
+  let applyingRemote = false
+  let lastAppliedAt = 0
+  let seekWatch: ReturnType<typeof setInterval> | null = null
+  let lastLocalPos = 0
+  let lastLocalAt = Date.now()
 
   type YtPlayer = {
     destroy: () => void
     loadVideoById: (id: string) => void
     playVideo: () => void
+    pauseVideo: () => void
+    seekTo: (seconds: number, allowSeekAhead: boolean) => void
+    getCurrentTime: () => number
+    getPlayerState: () => number
   }
+
+  let player: YtPlayer | null = null
+
+  const PLAYING = 1
+  const PAUSED = 2
+  const ENDED = 0
 
   function getYt():
     | {
@@ -54,6 +75,44 @@
     })
   }
 
+  function expectedTime(pos: number, at: number, isPlaying: boolean) {
+    if (!isPlaying || !at) return pos
+    return pos + Math.max(0, (Date.now() - at) / 1000)
+  }
+
+  function applyRemote(force = false) {
+    if (!player) return
+    const target = expectedTime(position, playbackAt, playing)
+    try {
+      applyingRemote = true
+      const current = player.getCurrentTime?.() ?? 0
+      if (force || Math.abs(current - target) > 0.85) {
+        player.seekTo(target, true)
+      }
+      const state = player.getPlayerState?.()
+      if (playing && state !== PLAYING) player.playVideo()
+      else if (!playing && state === PLAYING) player.pauseVideo()
+    } catch {
+      /* mid-load */
+    } finally {
+      queueMicrotask(() => {
+        applyingRemote = false
+      })
+    }
+  }
+
+  function emitLocal(nextPlaying: boolean) {
+    if (applyingRemote || !player) return
+    try {
+      const t = player.getCurrentTime() || 0
+      lastLocalPos = t
+      lastLocalAt = Date.now()
+      onPlayback(nextPlaying, t)
+    } catch {
+      /* ignore */
+    }
+  }
+
   async function mount(id: string) {
     await loadApi()
     const YT = getYt()
@@ -62,12 +121,16 @@
     hostEl.innerHTML = ''
     const mountNode = document.createElement('div')
     hostEl.appendChild(mountNode)
+
+    const startAt = expectedTime(position, playbackAt, playing)
+
     player = new YT.Player(mountNode, {
       videoId: id,
       width: '100%',
       height: '100%',
       playerVars: {
-        autoplay: 1,
+        autoplay: playing ? 1 : 0,
+        start: Math.floor(startAt),
         controls: 1,
         rel: 0,
         modestbranding: 1,
@@ -75,8 +138,17 @@
         origin: location.origin,
       },
       events: {
+        onReady: () => {
+          lastAppliedAt = playbackAt
+          lastLocalPos = startAt
+          lastLocalAt = Date.now()
+          applyRemote(true)
+        },
         onStateChange: (e: { data: number }) => {
-          if (e.data === 0) onNext() // ended
+          if (applyingRemote || !player) return
+          if (e.data === PLAYING) emitLocal(true)
+          else if (e.data === PAUSED) emitLocal(false)
+          else if (e.data === ENDED) onNext()
         },
       },
     })
@@ -90,6 +162,48 @@
       return
     }
     void mount(id)
+  })
+
+  $effect(() => {
+    const token = playbackAt
+    if (!player || !token || token === lastAppliedAt) return
+    lastAppliedAt = token
+    applyRemote()
+  })
+
+  $effect(() => {
+    if (seekWatch) {
+      clearInterval(seekWatch)
+      seekWatch = null
+    }
+    // Detect scrubbing on the YouTube controls
+    seekWatch = setInterval(() => {
+      if (!player || applyingRemote) return
+      try {
+        const current = player.getCurrentTime() || 0
+        const state = player.getPlayerState()
+        const advancing = state === PLAYING
+        const expected = advancing
+          ? lastLocalPos + (Date.now() - lastLocalAt) / 1000
+          : lastLocalPos
+        if (Math.abs(current - expected) > 1.25) {
+          lastLocalPos = current
+          lastLocalAt = Date.now()
+          onPlayback(advancing, current)
+        } else {
+          lastLocalPos = current
+          lastLocalAt = Date.now()
+        }
+      } catch {
+        /* ignore */
+      }
+    }, 1000)
+  })
+
+  onDestroy(() => {
+    if (seekWatch) clearInterval(seekWatch)
+    player?.destroy()
+    player = null
   })
 
   function onTouchStart(e: TouchEvent) {
@@ -159,7 +273,7 @@
     border-radius: 1.25rem;
     overflow: hidden;
     background: #000;
-    box-shadow: 0 24px 60px rgba(11, 61, 58, 0.28);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
   }
 
   .player {

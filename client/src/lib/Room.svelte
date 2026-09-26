@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte'
   import SharedPlayer from './SharedPlayer.svelte'
-  import type { RoomState } from './types'
+  import type { PlaybackState, RoomState } from './types'
   import { appPath, withBase } from './paths'
   import { RoomSocket } from './ws'
 
@@ -25,10 +25,25 @@
   onMount(() => {
     socket = new RoomSocket(
       (state) => {
-        room = state
+        room = {
+          ...state,
+          playing: state.playing ?? true,
+          position: state.position ?? 0,
+          playbackAt: state.playbackAt ?? state.updatedAt ?? Date.now(),
+        }
         if (create && state.roomId && !appPath().startsWith('/room/')) {
           history.replaceState({}, '', withBase(`/room/${state.roomId}`))
           window.dispatchEvent(new PopStateEvent('popstate'))
+        }
+      },
+      (playback: PlaybackState) => {
+        if (!room) return
+        room = {
+          ...room,
+          playing: playback.playing,
+          position: playback.position,
+          playbackAt: playback.playbackAt,
+          updatedAt: playback.playbackAt,
         }
       },
       (message) => {
@@ -50,6 +65,10 @@
 
   function pickFeed(clientId: string) {
     socket?.setFeedOwner(clientId)
+  }
+
+  function handlePlayback(playing: boolean, position: number) {
+    socket?.sendPlayback(playing, position)
   }
 
   async function copy() {
@@ -108,9 +127,13 @@
     <div class="player-wrap">
       <SharedPlayer
         videoId={room.videoId}
+        playing={room.playing}
+        position={room.position}
+        playbackAt={room.playbackAt}
         canGoPrev={room.historyLength > 0}
         onNext={next}
         onPrev={prev}
+        onPlayback={handlePlayback}
       />
     </div>
   </div>

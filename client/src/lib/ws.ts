@@ -1,4 +1,4 @@
-import type { RoomState } from './types'
+import type { PlaybackState, RoomState } from './types'
 
 const RENDER_WS = 'wss://shortstogetherbackend.onrender.com'
 
@@ -40,15 +40,22 @@ export function setServerUrl(url: string) {
 }
 
 type Handler = (state: RoomState) => void
+type PlaybackHandler = (state: PlaybackState) => void
 type ErrHandler = (message: string) => void
 
 export class RoomSocket {
   private ws: WebSocket | null = null
   private onState: Handler
+  private onPlayback: PlaybackHandler
   private onError: ErrHandler
 
-  constructor(onState: Handler, onError: ErrHandler = () => {}) {
+  constructor(
+    onState: Handler,
+    onPlayback: PlaybackHandler = () => {},
+    onError: ErrHandler = () => {},
+  ) {
     this.onState = onState
+    this.onPlayback = onPlayback
     this.onError = onError
   }
 
@@ -79,14 +86,11 @@ export class RoomSocket {
       try {
         const data = JSON.parse(String(event.data))
         if (data.type === 'room-state') this.onState(data as RoomState)
+        if (data.type === 'playback') this.onPlayback(data as PlaybackState)
         if (data.type === 'error') this.onError(data.message || 'Server error')
       } catch {
         /* ignore */
       }
-    })
-
-    this.ws.addEventListener('close', () => {
-      // caller may reconnect
     })
   }
 
@@ -106,6 +110,10 @@ export class RoomSocket {
 
   setFeedOwner(clientIdValue: string) {
     this.send({ type: 'set-feed-owner', clientId: clientIdValue })
+  }
+
+  sendPlayback(playing: boolean, position: number) {
+    this.send({ type: 'playback', playing, position })
   }
 
   close() {
